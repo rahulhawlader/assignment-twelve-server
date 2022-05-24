@@ -19,20 +19,33 @@ async function run() {
     try {
         await client.connect();
 
+
         const productCollection = client.db('Bycycle-store').collection('products');
+        const orderCollection = client.db('Bycycle-store').collection('order');
+
+        app.post('/order', async (req, res) => {
+            const order = req.body;
+            const result = await orderCollection.insertOne(order);
+            res.send(result);
+        })
+
 
         app.get('/product', async (req, res) => {
             const query = {};
             const cursor = productCollection.find(query);
             const products = await cursor.toArray();
             res.send(products);
+
+
         })
         app.get('/product/:id', async (req, res) => {
             const id = req.params.id;
             const filter = { _id: ObjectId(id) }
             const cursor = await productCollection.findOne(filter);
+
             // const products = await cursor.toArray();
             res.send(cursor);
+            console.log(cursor);
         })
 
 
