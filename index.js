@@ -23,6 +23,13 @@ async function run() {
         const productCollection = client.db('Bycycle-store').collection('products');
         const orderCollection = client.db('Bycycle-store').collection('order');
 
+        app.get('/order', async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email };
+            const orders = await orderCollection.find(query).toArray();
+            res.send(orders)
+        })
+
         app.post('/order', async (req, res) => {
             const order = req.body;
             const result = await orderCollection.insertOne(order);
