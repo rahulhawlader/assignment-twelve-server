@@ -26,6 +26,28 @@ async function run() {
         const orderCollection = client.db('Bycycle-store').collection('order');
         const userCollection = client.db('Bycycle-store').collection('users');
 
+        function verifyJWT(req, res, next) {
+            const authHeader = req.headers.authorization;
+            if (!authHeader) {
+                return res.status(401).send({ message: 'UnAuthorized access' })
+            }
+
+            const token = authHeader.split(' ')[1];
+            jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, function (err, decoded) {
+                if (err) {
+                    return res.status(403).send({ message: 'Forbidden access' })
+                }
+                req.decoded = decoded;
+                next();
+            })
+        }
+
+        app.get('/user', async (req, res) => {
+            const users = await userCollection.find().toArray();
+            res.send(users)
+        })
+
+
         app.put('/user/:email', async (req, res) => {
             const email = req.params.email;
             const user = req.body;
@@ -41,13 +63,20 @@ async function run() {
 
         })
 
-        app.get('/order', async (req, res) => {
+        app.get('/order', verifyJWT, async (req, res) => {
             const email = req.query.email;
             const authorization = req.headers.authorization;
             console.log('auth headers', authorization);
-            const query = { email: email };
-            const orders = await orderCollection.find(query).toArray();
-            res.send(orders)
+            const decodedEmail = req.decoded.email;
+            if (email === decodedEmail) {
+                const query = { email: email };
+                const orders = await orderCollection.find(query).toArray();
+                return res.send(orders)
+            }
+            else {
+                return res.status(403).send({ message: 'Forbidden access' })
+            }
+
         })
 
         app.post('/order', async (req, res) => {
