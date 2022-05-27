@@ -17,6 +17,23 @@ const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster
 
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
+function verifyJWT(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).send({ message: 'UnAuthorized access' })
+    }
+
+    const token = authHeader.split(' ')[1];
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, function (err, decoded) {
+        if (err) {
+            return res.status(403).send({ message: 'Forbidden access' })
+        }
+        req.decoded = decoded;
+        next();
+    })
+}
+
+
 async function run() {
     try {
         await client.connect();
@@ -25,7 +42,19 @@ async function run() {
         const productCollection = client.db('Bycycle-store').collection('products');
         const orderCollection = client.db('Bycycle-store').collection('order');
         const userCollection = client.db('Bycycle-store').collection('users');
+        const reviewCollection = client.db('Bycycle-store').collection('review');
 
+
+        // const verifyAdmin = async (req, res, next) => {
+        //     const requester = req.decoded.email;
+        //     const requesterAccount = await userCollection.findOne({ email: requester });
+        //     if (requesterAccount.role === 'admin') {
+        //         next();
+        //     }
+        //     else {
+        //         res.status(403).send({ message: 'forbidden' });
+        //     }
+        // }
         function verifyJWT(req, res, next) {
             const authHeader = req.headers.authorization;
             if (!authHeader) {
@@ -41,6 +70,8 @@ async function run() {
                 next();
             })
         }
+
+
 
         app.get('/user', verifyJWT, async (req, res) => {
             const users = await userCollection.find().toArray();
@@ -58,21 +89,24 @@ async function run() {
         app.put('/user/admin/:email', verifyJWT, async (req, res) => {
             const email = req.params.email;
             const requester = req.decoded.email;
-            const requesterAccount = await userCollection.findOne({ email: requester })
+            const requesterAccount = await userCollection.findOne({ email: requester });
             if (requesterAccount.role === 'admin') {
                 const filter = { email: email }
                 const updateDoc = {
                     $set: { role: 'admin' },
                 }
                 const result = await userCollection.updateOne(filter, updateDoc)
-
                 res.send(result)
-
 
             }
             else {
-                res.status(403).send({ message: 'Forbidden access' })
+                res.status(403).send({ message: 'forbidden' });
             }
+
+
+
+
+
 
 
 
@@ -87,7 +121,7 @@ async function run() {
                 $set: user,
             }
             const result = await userCollection.updateOne(filter, updateDoc, options)
-            const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '6h' })
+            const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1d' })
             res.send({ result, token })
 
 
@@ -124,6 +158,16 @@ async function run() {
         })
 
 
+
+
+        app.get('/review', async (req, res) => {
+            const query = {};
+            const cursor = reviewCollection.find(query);
+            const reviews = await cursor.toArray();
+            res.send(reviews);
+
+
+        })
         app.get('/product', async (req, res) => {
             const query = {};
             const cursor = productCollection.find(query);
@@ -142,11 +186,13 @@ async function run() {
             console.log(cursor);
         })
 
-        app.post('/product', async (req, res) => {
+        app.post('/product', verifyJWT, async (req, res) => {
             const newProduct = req.body;
             const result = await productCollection.insertOne(newProduct);
             res.send(result)
         })
+
+
 
 
 
